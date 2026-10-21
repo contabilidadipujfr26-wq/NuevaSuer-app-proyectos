@@ -1,0 +1,303 @@
+# NuevaSuer-app-proyectos
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ContabilASM – Ascensun DAO & Investment Tracker</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons CDN -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body { background-color: #0b0f19; color: #f3f4f6; font-family: system-ui, -apple-system, sans-serif; }
+        .card { background: #111827; border: 1px solid #1f2937; border-radius: 1rem; }
+        .gold-text { color: #f59e0b; }
+        .gold-bg { background-color: #f59e0b; }
+    </style>
+</head>
+<body class="pb-12">
+
+    <!-- Header Fijo -->
+    <header class="p-4 border-b border-gray-800 bg-gray-900/90 backdrop-blur sticky top-0 z-50 flex justify-between items-center">
+        <div class="flex items-center space-x-2">
+            <div class="p-2 gold-bg rounded-lg text-black font-extrabold text-sm">ASM</div>
+            <div>
+                <h1 class="font-bold text-base md:text-lg text-white leading-tight">ContabilASM</h1>
+                <p class="text-[10px] md:text-xs text-gray-400">Ascensun DAO & Investment Tracker</p>
+            </div>
+        </div>
+        <div class="flex items-center space-x-2 bg-gray-800/80 px-2.5 py-1 rounded-lg border border-gray-700">
+            <span class="text-xs text-gray-400 font-medium">Tasa BCV:</span>
+            <span class="text-xs gold-text font-bold">Bs.</span>
+            <input type="number" step="0.01" id="tasa-bcv" class="w-16 bg-gray-900 text-white font-bold text-xs p-1 rounded text-right focus:outline-none focus:ring-1 focus:ring-yellow-500" value="36.50">
+        </div>
+    </header>
+
+    <main class="p-3 md:p-6 max-w-5xl mx-auto space-y-6">
+
+        <!-- Advertencia de almacenamiento local -->
+        <div class="bg-blue-950/40 border border-blue-800/50 p-3 rounded-xl flex items-center justify-between text-xs text-blue-300">
+            <div class="flex items-center space-x-2">
+                <i data-lucide="info" class="w-4 h-4 text-blue-400 shrink-0"></i>
+                <span>Los datos viven únicamente en este navegador (localStorage). Exporta un respaldo periódicamente.</span>
+            </div>
+            <div class="flex space-x-1 shrink-0 ml-2">
+                <button onclick="exportarJSON()" title="Exportar JSON" class="px-2 py-1 bg-blue-900/60 hover:bg-blue-800 border border-blue-700 rounded text-white flex items-center gap-1 text-[11px]"><i data-lucide="download" class="w-3 h-3"></i> JSON</button>
+                <button onclick="exportarCSV()" title="Exportar CSV" class="px-2 py-1 bg-emerald-900/60 hover:bg-emerald-800 border border-emerald-700 rounded text-white flex items-center gap-1 text-[11px]"><i data-lucide="file-spreadsheet" class="w-3 h-3"></i> CSV</button>
+                <label title="Importar JSON" class="px-2 py-1 bg-yellow-900/60 hover:bg-yellow-800 border border-yellow-700 rounded text-white flex items-center gap-1 text-[11px] cursor-pointer">
+                    <i data-lucide="upload" class="w-3 h-3"></i> Imp
+                    <input type="file" id="input-importar" accept=".json" class="hidden" onchange="importarJSON(event)">
+                </label>
+            </div>
+        </div>
+
+        <!-- 1. DASHBOARD GLOBAL -->
+        <section class="card p-4 md:p-5">
+            <h2 class="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                <i data-lucide="layout-dashboard" class="w-4 h-4 gold-text"></i> Dashboard Global
+            </h2>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div class="bg-gray-900/80 p-3.5 rounded-xl border border-gray-800">
+                    <p class="text-[11px] text-gray-400">Total Invertido</p>
+                    <p id="dash-invertido-usd" class="text-lg md:text-xl font-bold text-white mt-0.5">$0.00</p>
+                    <p id="dash-invertido-ves" class="text-[10px] text-gray-500">Bs. 0.00</p>
+                </div>
+                <div class="bg-gray-900/80 p-3.5 rounded-xl border border-gray-800">
+                    <p class="text-[11px] text-gray-400">Ganancias Totales</p>
+                    <p id="dash-ganancias-usd" class="text-lg md:text-xl font-bold text-emerald-400 mt-0.5">$0.00</p>
+                    <p id="dash-ganancias-ves" class="text-[10px] text-gray-500">Bs. 0.00</p>
+                </div>
+                <div class="bg-gray-900/80 p-3.5 rounded-xl border border-gray-800">
+                    <p class="text-[11px] text-gray-400">Pérdidas Totales</p>
+                    <p id="dash-perdidas-usd" class="text-lg md:text-xl font-bold text-rose-500 mt-0.5">$0.00</p>
+                    <p id="dash-perdidas-ves" class="text-[10px] text-gray-500">Bs. 0.00</p>
+                </div>
+                <div class="bg-gray-900/80 p-3.5 rounded-xl border border-gray-800">
+                    <p class="text-[11px] text-gray-400">Recuperado Neto</p>
+                    <p id="dash-neto-usd" class="text-lg md:text-xl font-bold gold-text mt-0.5">$0.00</p>
+                    <p id="dash-recuperado-pct" class="text-[10px] text-emerald-400">0.00% recuperado</p>
+                </div>
+            </div>
+            <div class="grid grid-cols-3 gap-3 mt-3 pt-3 border-t border-gray-800 text-center">
+                <div>
+                    <span class="text-[10px] text-gray-400 block">Pendiente General</span>
+                    <span id="dash-pendiente" class="text-xs font-bold text-gray-200">$0.00</span>
+                </div>
+                <div>
+                    <span class="text-[10px] text-gray-400 block">Total Proyectos</span>
+                    <span id="dash-total-proyectos" class="text-xs font-bold text-blue-400">0</span>
+                </div>
+                <div>
+                    <span class="text-[10px] text-gray-400 block">Proyectos Recuperados</span>
+                    <span id="dash-recuperados-count" class="text-xs font-bold text-emerald-400">0</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- 2. FORMULARIOS (REGISTRO DE PROYECTO / MOVIMIENTO) -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            
+            <!-- Crear / Editar Proyecto -->
+            <section class="card p-4">
+                <h3 id="titulo-form-proyecto" class="text-sm font-bold text-white mb-3 flex items-center gap-2">
+                    <i data-lucide="plus-circle" class="w-4 h-4 gold-text"></i> Registrar / Editar Proyecto
+                </h3>
+                <form id="form-proyecto" class="space-y-3">
+                    <input type="hidden" id="edit-proyecto-id" value="">
+                    <div>
+                        <label class="text-[11px] text-gray-400 block mb-1">Nombre del Proyecto</label>
+                        <input type="text" id="proj-nombre" placeholder="Ej. Concilium Node #1" class="w-full p-2 bg-gray-900 border border-gray-800 rounded-lg text-xs text-white focus:outline-none focus:border-yellow-500" required>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="text-[11px] text-gray-400 block mb-1">Tipo de Inversión</label>
+                            <select id="proj-tipo" class="w-full p-2 bg-gray-900 border border-gray-800 rounded-lg text-xs text-white focus:outline-none focus:border-yellow-500">
+                                <option value="Nodo de Inversión">Nodo de Inversión</option>
+                                <option value="Staking - ASM (Max 136%)">Staking - ASM (Max 136%)</option>
+                                <option value="Farming - T2 + ASM (Max 160%)">Farming - T2 + ASM (Max 160%)</option>
+                                <option value="Otro Proyecto">Otro Proyecto</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-[11px] text-gray-400 block mb-1">Monto ($ / USDT)</label>
+                            <input type="number" step="0.01" id="proj-inversion" placeholder="100.00" class="w-full p-2 bg-gray-900 border border-gray-800 rounded-lg text-xs text-white focus:outline-none focus:border-yellow-500" required>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="text-[11px] text-gray-400 block mb-1">% ROI Estimado</label>
+                            <input type="number" step="0.1" id="proj-roi" placeholder="9.0" class="w-full p-2 bg-gray-900 border border-gray-800 rounded-lg text-xs text-white focus:outline-none focus:border-yellow-500" required>
+                        </div>
+                        <div>
+                            <label class="text-[11px] text-gray-400 block mb-1">Fecha de Inicio</label>
+                            <input type="date" id="proj-inicio" class="w-full p-2 bg-gray-900 border border-gray-800 rounded-lg text-xs text-white focus:outline-none focus:border-yellow-500" required>
+                        </div>
+                    </div>
+                    <div class="flex space-x-2 pt-1">
+                        <button type="submit" id="btn-guardar-proyecto" class="flex-1 py-2 gold-bg font-bold text-black text-xs rounded-lg hover:bg-yellow-600 transition">Guardar Proyecto</button>
+                        <button type="button" id="btn-cancelar-proyecto" onclick="cancelarEdicionProyecto()" class="hidden px-3 py-2 bg-gray-800 text-gray-300 text-xs rounded-lg hover:bg-gray-700">Cancelar</button>
+                    </div>
+                </form>
+            </section>
+
+            <!-- Registrar Movimiento -->
+            <section class="card p-4">
+                <h3 class="text-sm font-bold text-white mb-3 flex items-center gap-2">
+                    <i data-lucide="arrow-up-down" class="w-4 h-4 gold-text"></i> Registrar Movimiento
+                </h3>
+                <form id="form-movimiento" class="space-y-3">
+                    <div>
+                        <label class="text-[11px] text-gray-400 block mb-1">Seleccionar Proyecto</label>
+                        <select id="mov-proyecto" class="w-full p-2 bg-gray-900 border border-gray-800 rounded-lg text-xs text-white focus:outline-none focus:border-yellow-500" required>
+                            <!-- Opciones dinámicas -->
+                        </select>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="text-[11px] text-gray-400 block mb-1">Tipo Movimiento</label>
+                            <select id="mov-tipo" class="w-full p-2 bg-gray-900 border border-gray-800 rounded-lg text-xs text-white focus:outline-none focus:border-yellow-500">
+                                <option value="ganancia">Ganancia (+)</option>
+                                <option value="perdida">Pérdida (-)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-[11px] text-gray-400 block mb-1">Monto ($)</label>
+                            <input type="number" step="0.01" id="mov-monto" placeholder="10.00" class="w-full p-2 bg-gray-900 border border-gray-800 rounded-lg text-xs text-white focus:outline-none focus:border-yellow-500" required>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="text-[11px] text-gray-400 block mb-1">Fecha Movimiento</label>
+                            <input type="date" id="mov-fecha" class="w-full p-2 bg-gray-900 border border-gray-800 rounded-lg text-xs text-white focus:outline-none focus:border-yellow-500" required>
+                        </div>
+                        <div>
+                            <label class="text-[11px] text-gray-400 block mb-1">Nota (Opcional)</label>
+                            <input type="text" id="mov-nota" placeholder="Ej. Cosecha semanal" class="w-full p-2 bg-gray-900 border border-gray-800 rounded-lg text-xs text-white focus:outline-none focus:border-yellow-500">
+                        </div>
+                    </div>
+                    <button type="submit" class="w-full py-2 bg-emerald-600 hover:bg-emerald-500 font-bold text-white text-xs rounded-lg transition mt-1">Registrar Movimiento</button>
+                </form>
+            </section>
+
+        </div>
+
+        <!-- 3. TARJETAS DE PROYECTOS -->
+        <section class="space-y-4">
+            <h2 class="text-sm font-bold text-gray-400 uppercase tracking-wider flex items-center gap-2">
+                <i data-lucide="layers" class="w-4 h-4 gold-text"></i> Detalle de Proyectos
+            </h2>
+            <div id="contenedor-tarjetas-proyectos" class="space-y-4">
+                <!-- Se genera dinámicamente -->
+            </div>
+        </section>
+
+        <!-- 4. TABLA COMPARATIVA GENERAL -->
+        <section class="card p-4 md:p-5">
+            <h2 class="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                <i data-lucide="table" class="w-4 h-4 gold-text"></i> Tabla Comparativa de Proyectos
+            </h2>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-xs text-gray-300">
+                    <thead class="bg-gray-900 text-gray-400 uppercase text-[10px]">
+                        <tr>
+                            <th class="p-2.5">Proyecto</th>
+                            <th class="p-2.5">Inversión</th>
+                            <th class="p-2.5">Ganancias</th>
+                            <th class="p-2.5">Pérdidas</th>
+                            <th class="p-2.5">Neto</th>
+                            <th class="p-2.5">% Rec.</th>
+                            <th class="p-2.5">Pendiente</th>
+                            <th class="p-2.5">Estado</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabla-comparativa" class="divide-y divide-gray-800">
+                        <!-- Carga dinámica -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+    </main>
+
+    <script>
+        // --- UTILIDADES ---
+        function escapeHTML(str) {
+            if (!str) return '';
+            return String(str).replace(/[&<>"']/g, function(m) {
+                return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m];
+            });
+        }
+
+        function hoyISO() {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
+        function calcularDiasEntre(fechaInicioStr, fechaFinStr) {
+            const f1 = new Date(fechaInicioStr + 'T00:00:00');
+            const f2 = new Date(fechaFinStr + 'T00:00:00');
+            const diffTime = f2 - f1;
+            return Math.floor(diffTime / (1000 * 60 * 60 * 24));
+        }
+
+        function formatoUSD(val) {
+            return '$' + Number(val).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        function formatoVES(valUSD, tasa) {
+            const ves = Number(valUSD) * Number(tasa);
+            return 'Bs. ' + ves.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        // --- ESTADO & PERSISTENCIA ---
+        const CLAVE_STORAGE = 'contabilasm_v2';
+        const CLAVE_ANTIGUA = 'inversiones_asm';
+
+        let appData = {
+            tasaBCV: 36.50,
+            proyectos: [],
+            movimientos: []
+        };
+
+        function cargarDatos() {
+            const dataGuardada = localStorage.getItem(CLAVE_STORAGE);
+            if (dataGuardada) {
+                try {
+                    appData = JSON.parse(dataGuardada);
+                } catch(e) {
+                    console.error('Error al parsear localStorage v2', e);
+                }
+            } else {
+                // Intento de migración desde inversiones_asm
+                const dataAntigua = localStorage.getItem(CLAVE_ANTIGUA);
+                if (dataAntigua) {
+                    try {
+                        const listaAntigua = JSON.parse(dataAntigua);
+                        if (Array.isArray(listaAntigua)) {
+                            listaAntigua.forEach(item => {
+                                appData.proyectos.push({
+                                    id: item.id || Date.now() + Math.random(),
+                                    nombre: item.proyecto || 'Proyecto Migrado',
+                                    tipo: item.tipo || 'Nodo de Inversión',
+                                    inversion: Number(item.monto) || 0,
+                                    roi: Number(item.roi) || 0,
+                                    inicio: item.fecha ? normalizarFecha(item.fecha) : hoyISO()
+                                });
+                            });
+                        }
+                    } catch(e) {
+                        console.error('Error al migrar versión antigua', e);
+                    }
+                }
+                
+                // Si aún está vacío, cargar ejemplos iniciales
+                if (appData.proyectos.length === 0) {
+                    const id1 = Date.now();
+                    const id2 = id1 + 1;
+                    appData.proyectos = [
+                        { id: id1, nombre: 'Concilium Node #1', tipo: 'Nodo de Inversión', inversion: 119.60, roi: 9, inicio: '2026-01-10' },
+                        { id: id2, nombre: 'Staking ASM', tipo: 'Staking - ASM (Max 136%)', inversion: 82.00,
