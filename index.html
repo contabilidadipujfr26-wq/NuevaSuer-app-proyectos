@@ -220,7 +220,6 @@
     </main>
 
     <script>
-        // --- UTILIDADES ---
         function escapeHTML(str) {
             if (!str) return '';
             return String(str).replace(/[&<>"']/g, function(m) {
@@ -252,7 +251,6 @@
             return 'Bs. ' + ves.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         }
 
-        // --- ESTADO & PERSISTENCIA ---
         const CLAVE_STORAGE = 'contabilasm_v2';
         const CLAVE_ANTIGUA = 'inversiones_asm';
 
@@ -271,7 +269,6 @@
                     console.error('Error al parsear localStorage v2', e);
                 }
             } else {
-                // Intento de migración desde inversiones_asm
                 const dataAntigua = localStorage.getItem(CLAVE_ANTIGUA);
                 if (dataAntigua) {
                     try {
@@ -293,10 +290,447 @@
                     }
                 }
                 
-                // Si aún está vacío, cargar ejemplos iniciales
                 if (appData.proyectos.length === 0) {
                     const id1 = Date.now();
                     const id2 = id1 + 1;
                     appData.proyectos = [
                         { id: id1, nombre: 'Concilium Node #1', tipo: 'Nodo de Inversión', inversion: 119.60, roi: 9, inicio: '2026-01-10' },
-                        { id: id2, nombre: 'Staking ASM', tipo: 'Staking - ASM (Max 136%)', inversion: 82.00,
+                        { id: id2, nombre: 'Staking ASM', tipo: 'Staking - ASM (Max 136%)', inversion: 82.00, roi: 136, inicio: '2026-05-10' }
+                    ];
+                }
+            }
+
+            if (!appData.tasaBCV) appData.tasaBCV = 36.50;
+            document.getElementById('tasa-bcv').value = appData.tasaBCV;
+            guardarDatos();
+        }
+
+        function normalizarFecha(fechaStr) {
+            if (fechaStr.includes('/')) {
+                const parts = fechaStr.split('/');
+                if (parts.length === 3) {
+                    return `${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`;
+                }
+            }
+            return hoyISO();
+        }
+
+        function guardarDatos() {
+            localStorage.setItem(CLAVE_STORAGE, JSON.stringify(appData));
+            renderizar();
+        }
+
+        document.getElementById('tasa-bcv').addEventListener('input', (e) => {
+            const val = parseFloat(e.target.value);
+            appData.tasaBCV = isNaN(val) ? 0 : val;
+            localStorage.setItem(CLAVE_STORAGE, JSON.stringify(appData));
+            renderizar();
+        });
+
+        document.getElementById('form-proyecto').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const editId = document.getElementById('edit-proyecto-id').value;
+            const nombre = document.getElementById('proj-nombre').value.trim();
+            const tipo = document.getElementById('proj-tipo').value;
+            const inversion = parseFloat(document.getElementById('proj-inversion').value);
+            const roi = parseFloat(document.getElementById('proj-roi').value);
+            const inicio = document.getElementById('proj-inicio').value;
+
+            if (!nombre || isNaN(inversion) || inversion <= 0 || isNaN(roi) || !inicio) {
+                alert('Por favor complete los campos correctamente con valores mayores a 0.');
+                return;
+            }
+
+            if (editId) {
+                const idx = appData.proyectos.findIndex(p => p.id == editId);
+                if (idx !== -1) {
+                    appData.proyectos[idx] = { id: Number(editId), nombre, tipo, inversion, roi, inicio };
+                }
+                cancelarEdicionProyecto();
+            } else {
+                appData.proyectos.push({
+                    id: Date.now(),
+                    nombre,
+                    tipo,
+                    inversion,
+                    roi,
+                    inicio
+                });
+            }
+
+            document.getElementById('form-proyecto').reset();
+            document.getElementById('proj-inicio').value = hoyISO();
+            guardarDatos();
+        });
+
+        function editarProyecto(id) {
+            const p = appData.proyectos.find(item => item.id == id);
+            if (!p) return;
+            document.getElementById('edit-proyecto-id').value = p.id;
+            document.getElementById('proj-nombre').value = p.nombre;
+            document.getElementById('proj-tipo').value = p.tipo;
+            document.getElementById('proj-inversion').value = p.inversion;
+            document.getElementById('proj-roi').value = p.roi;
+            document.getElementById('proj-inicio').value = p.inicio;
+
+            document.getElementById('titulo-form-proyecto').innerHTML = `<i data-lucide="edit" class="w-4 h-4 gold-text"></i> Editar Proyecto`;
+            document.getElementById('btn-guardar-proyecto').innerText = 'Actualizar Proyecto';
+            document.getElementById('btn-cancelar-proyecto').classList.remove('hidden');
+            lucide.createIcons();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function cancelarEdicionProyecto() {
+            document.getElementById('edit-proyecto-id').value = '';
+            document.getElementById('form-proyecto').reset();
+            document.getElementById('proj-inicio').value = hoyISO();
+            document.getElementById('titulo-form-proyecto').innerHTML = `<i data-lucide="plus-circle" class="w-4 h-4 gold-text"></i> Registrar / Editar Proyecto`;
+            document.getElementById('btn-guardar-proyecto').innerText = 'Guardar Proyecto';
+            document.getElementById('btn-cancelar-proyecto').classList.add('hidden');
+            lucide.createIcons();
+        }
+
+        function eliminarProyecto(id) {
+            if (confirm('¿Está seguro de eliminar este proyecto y todos sus movimientos registrados?')) {
+                appData.proyectos = appData.proyectos.filter(p => p.id != id);
+                appData.movimientos = appData.movimientos.filter(m => m.proyectoId != id);
+                guardarDatos();
+            }
+        }
+
+        document.getElementById('form-movimiento').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const proyectoId = document.getElementById('mov-proyecto').value;
+            const tipo = document.getElementById('mov-tipo').value;
+            const monto = parseFloat(document.getElementById('mov-monto').value);
+            const fecha = document.getElementById('mov-fecha').value;
+            const nota = document.getElementById('mov-nota').value.trim();
+
+            if (!proyectoId || isNaN(monto) || monto <= 0 || !fecha) {
+                alert('Seleccione un proyecto y un monto válido.');
+                return;
+            }
+
+            appData.movimientos.push({
+                id: Date.now(),
+                proyectoId: Number(proyectoId),
+                tipo,
+                monto,
+                fecha,
+                nota
+            });
+
+            document.getElementById('mov-monto').value = '';
+            document.getElementById('mov-nota').value = '';
+            guardarDatos();
+        });
+
+        function eliminarMovimiento(movId) {
+            if (confirm('¿Eliminar este movimiento?')) {
+                appData.movimientos = appData.movimientos.filter(m => m.id != movId);
+                guardarDatos();
+            }
+        }
+
+        function toggleMovimientos(projId) {
+            const el = document.getElementById(`movs-container-${projId}`);
+            if (el) el.classList.toggle('hidden');
+        }
+
+        function calcularProyecto(p) {
+            const movs = appData.movimientos.filter(m => m.proyectoId == p.id);
+            movs.sort((a,b) => new Date(a.fecha) - new Date(b.fecha));
+
+            let ganancias = 0;
+            let perdidas = 0;
+            let fechaRecuperado = null;
+            let acumuladoNetoTemp = 0;
+
+            movs.forEach(m => {
+                if (m.tipo === 'ganancia') ganancias += m.monto;
+                if (m.tipo === 'perdida') perdidas += m.monto;
+
+                acumuladoNetoTemp = ganancias - perdidas;
+                if (acumuladoNetoTemp >= p.inversion && !fechaRecuperado) {
+                    fechaRecuperado = m.fecha;
+                }
+            });
+
+            const neto = ganancias - perdidas;
+            const pctRecuperacion = p.inversion > 0 ? (neto / p.inversion) * 100 : 0;
+            const pendiente = Math.max(0, p.inversion - neto);
+
+            let estado = 'Activo';
+            if (neto >= p.inversion) estado = 'Recuperado';
+            else if (neto < 0) estado = 'En pérdida';
+
+            const hoy = hoyISO();
+            const diasTranscurridos = Math.max(1, calcularDiasEntre(p.inicio, hoy));
+
+            let vistaTiempoA = '';
+            if (neto >= p.inversion && fechaRecuperado) {
+                const diasHastaRecuperar = Math.max(0, calcularDiasEntre(p.inicio, fechaRecuperado));
+                vistaTiempoA = `Recuperado en ${diasHastaRecuperar} días`;
+            } else {
+                vistaTiempoA = `${diasTranscurridos} días transcurridos`;
+            }
+
+            let vistaTiempoB = '';
+            if (neto >= p.inversion) {
+                vistaTiempoB = 'Meta alcanzada';
+            } else {
+                const ritmoDiarioNeto = neto / diasTranscurridos;
+                if (ritmoDiarioNeto > 0) {
+                    const diasRestantesEst = Math.ceil(pendiente / ritmoDiarioNeto);
+                    vistaTiempoB = `Est. ${diasRestantesEst} días restantes`;
+                } else {
+                    vistaTiempoB = 'Sin ritmo positivo';
+                }
+            }
+
+            return {
+                ...p,
+                ganancias,
+                perdidas,
+                neto,
+                pctRecuperacion,
+                pendiente,
+                estado,
+                diasTranscurridos,
+                vistaTiempoA,
+                vistaTiempoB,
+                movs
+            };
+        }
+
+        function renderizar() {
+            const proyectosCalculados = appData.proyectos.map(p => calcularProyecto(p));
+
+            let totInvertido = 0;
+            let totGanancias = 0;
+            let totPerdidas = 0;
+            let totNeto = 0;
+            let totPendiente = 0;
+            let recuperadosCount = 0;
+
+            proyectosCalculados.forEach(p => {
+                totInvertido += p.inversion;
+                totGanancias += p.ganancias;
+                totPerdidas += p.perdidas;
+                totNeto += p.neto;
+                totPendiente += p.pendiente;
+                if (p.estado === 'Recuperado') recuperadosCount++;
+            });
+
+            const tasa = appData.tasaBCV || 36.50;
+            const pctGlobalRec = totInvertido > 0 ? (totNeto / totInvertido) * 100 : 0;
+
+            document.getElementById('dash-invertido-usd').innerText = formatoUSD(totInvertido);
+            document.getElementById('dash-invertido-ves').innerText = formatoVES(totInvertido, tasa);
+
+            document.getElementById('dash-ganancias-usd').innerText = formatoUSD(totGanancias);
+            document.getElementById('dash-ganancias-ves').innerText = formatoVES(totGanancias, tasa);
+
+            document.getElementById('dash-perdidas-usd').innerText = formatoUSD(totPerdidas);
+            document.getElementById('dash-perdidas-ves').innerText = formatoVES(totPerdidas, tasa);
+
+            document.getElementById('dash-neto-usd').innerText = formatoUSD(totNeto);
+            document.getElementById('dash-recuperado-pct').innerText = `${pctGlobalRec.toFixed(2)}% recuperado`;
+
+            document.getElementById('dash-pendiente').innerText = formatoUSD(totPendiente);
+            document.getElementById('dash-total-proyectos').innerText = proyectosCalculados.length;
+            document.getElementById('dash-recuperados-count').innerText = recuperadosCount;
+
+            const selectMovProj = document.getElementById('mov-proyecto');
+            selectMovProj.innerHTML = proyectosCalculados.map(p => 
+                `<option value="${p.id}">${escapeHTML(p.nombre)}</option>`
+            ).join('');
+
+            const containerTarjetas = document.getElementById('contenedor-tarjetas-proyectos');
+            containerTarjetas.innerHTML = '';
+
+            if (proyectosCalculados.length === 0) {
+                containerTarjetas.innerHTML = `<div class="card p-6 text-center text-gray-500 text-xs">No hay proyectos registrados.</div>`;
+            } else {
+                proyectosCalculados.forEach(p => {
+                    let badgeColor = 'bg-blue-500/10 text-blue-400 border-blue-500/20';
+                    if (p.estado === 'Recuperado') badgeColor = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+                    if (p.estado === 'En pérdida') badgeColor = 'bg-rose-500/10 text-rose-500 border-rose-500/20';
+
+                    const pctBarra = Math.max(0, Math.min(100, p.pctRecuperacion));
+                    let colorBarra = 'bg-yellow-500';
+                    if (p.pctRecuperacion >= 100) colorBarra = 'bg-emerald-500';
+                    if (p.pctRecuperacion < 0) colorBarra = 'bg-rose-500';
+
+                    const htmlMovs = p.movs.length === 0 ? 
+                        `<p class="text-[11px] text-gray-500 italic p-2">Sin movimientos registrados.</p>` :
+                        p.movs.map(m => `
+                            <div class="flex justify-between items-center p-2 hover:bg-gray-800/40 rounded border-b border-gray-800/50 text-xs">
+                                <div>
+                                    <span class="${m.tipo === 'ganancia' ? 'text-emerald-400 font-bold' : 'text-rose-500 font-bold'}">
+                                        ${m.tipo === 'ganancia' ? '+' : '-'}${formatoUSD(m.monto)}
+                                    </span>
+                                    <span class="text-[10px] text-gray-500 ml-2">${escapeHTML(m.fecha)}</span>
+                                    ${m.nota ? `<p class="text-[10px] text-gray-400">${escapeHTML(m.nota)}</p>` : ''}
+                                </div>
+                                <button onclick="eliminarMovimiento(${m.id})" class="text-gray-500 hover:text-rose-400 p-1" title="Eliminar movimiento">
+                                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                                </button>
+                            </div>
+                        `).join('');
+
+                    containerTarjetas.innerHTML += `
+                        <div class="card p-4 space-y-3">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <div class="flex items-center gap-2">
+                                        <h3 class="font-bold text-white text-base">${escapeHTML(p.nombre)}</h3>
+                                        <span class="text-[10px] px-2 py-0.5 rounded-full border ${badgeColor} font-semibold">${p.estado}</span>
+                                    </div>
+                                    <p class="text-xs text-gray-400 mt-0.5">${escapeHTML(p.tipo)} • <span class="gold-text">ROI: ${p.roi}%</span></p>
+                                </div>
+                                <div class="flex space-x-1">
+                                    <button onclick="editarProyecto(${p.id})" class="p-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg" title="Editar">
+                                        <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                                    </button>
+                                    <button onclick="eliminarProyecto(${p.id})" class="p-1.5 bg-gray-800 hover:bg-rose-950 text-rose-400 rounded-lg" title="Eliminar">
+                                        <i data-lucide="trash" class="w-3.5 h-3.5"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-2 pt-1 text-xs">
+                                <div class="bg-gray-900/60 p-2 rounded-lg border border-gray-800/80">
+                                    <span class="text-[10px] text-gray-400 block">Inversión</span>
+                                    <span class="font-bold text-white">${formatoUSD(p.inversion)}</span>
+                                    <span class="text-[9px] text-gray-500 block">${formatoVES(p.inversion, tasa)}</span>
+                                </div>
+                                <div class="bg-gray-900/60 p-2 rounded-lg border border-gray-800/80">
+                                    <span class="text-[10px] text-gray-400 block">Recuperado Neto</span>
+                                    <span class="font-bold ${p.neto >= 0 ? 'text-emerald-400' : 'text-rose-500'}">${formatoUSD(p.neto)}</span>
+                                    <span class="text-[9px] text-gray-500 block">${formatoVES(p.neto, tasa)}</span>
+                                </div>
+                                <div class="bg-gray-900/60 p-2 rounded-lg border border-gray-800/80">
+                                    <span class="text-[10px] text-gray-400 block">Pendiente</span>
+                                    <span class="font-bold text-gray-200">${formatoUSD(p.pendiente)}</span>
+                                    <span class="text-[9px] text-gray-500 block">${formatoVES(p.pendiente, tasa)}</span>
+                                </div>
+                                <div class="bg-gray-900/60 p-2 rounded-lg border border-gray-800/80">
+                                    <span class="text-[10px] text-gray-400 block">Tiempo</span>
+                                    <span class="font-bold text-blue-400 text-[11px] block">${p.vistaTiempoA}</span>
+                                    <span class="text-[9px] text-gray-400 block">${p.vistaTiempoB}</span>
+                                </div>
+                            </div>
+
+                            <div>
+                                <div class="flex justify-between text-[10px] text-gray-400 mb-1">
+                                    <span>Progreso de Recuperación</span>
+                                    <span class="font-bold text-white">${p.pctRecuperacion.toFixed(1)}%</span>
+                                </div>
+                                <div class="w-full bg-gray-800 h-2 rounded-full overflow-hidden">
+                                    <div class="${colorBarra} h-full transition-all duration-300" style="width: ${pctBarra}%"></div>
+                                </div>
+                            </div>
+
+                            <div class="pt-2 border-t border-gray-800/60">
+                                <button onclick="toggleMovimientos(${p.id})" class="w-full py-1 text-[11px] text-gray-400 hover:text-white flex items-center justify-between">
+                                    <span class="flex items-center gap-1"><i data-lucide="history" class="w-3 h-3"></i> Ver Movimientos (${p.movs.length})</span>
+                                    <i data-lucide="chevron-down" class="w-3 h-3"></i>
+                                </button>
+                                <div id="movs-container-${p.id}" class="hidden mt-2 bg-gray-900/80 rounded-lg p-2 divide-y divide-gray-800 border border-gray-800">
+                                    ${htmlMovs}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+
+            const tablaComp = document.getElementById('tabla-comparativa');
+            tablaComp.innerHTML = '';
+            
+            if (proyectosCalculados.length === 0) {
+                tablaComp.innerHTML = `<tr><td colspan="8" class="p-4 text-center text-gray-500">Sin datos.</td></tr>`;
+            } else {
+                proyectosCalculados.forEach(p => {
+                    let badgeColor = 'text-blue-400';
+                    if (p.estado === 'Recuperado') badgeColor = 'text-emerald-400';
+                    if (p.estado === 'En pérdida') badgeColor = 'text-rose-500';
+
+                    tablaComp.innerHTML += `
+                        <tr class="hover:bg-gray-800/40">
+                            <td class="p-2.5 font-semibold text-white">${escapeHTML(p.nombre)}</td>
+                            <td class="p-2.5">${formatoUSD(p.inversion)}</td>
+                            <td class="p-2.5 text-emerald-400">${formatoUSD(p.ganancias)}</td>
+                            <td class="p-2.5 text-rose-500">${formatoUSD(p.perdidas)}</td>
+                            <td class="p-2.5 font-bold ${p.neto >= 0 ? 'text-emerald-400' : 'text-rose-500'}">${formatoUSD(p.neto)}</td>
+                            <td class="p-2.5 font-semibold">${p.pctRecuperacion.toFixed(1)}%</td>
+                            <td class="p-2.5">${formatoUSD(p.pendiente)}</td>
+                            <td class="p-2.5 font-bold ${badgeColor}">${p.estado}</td>
+                        </tr>
+                    `;
+                });
+            }
+
+            lucide.createIcons();
+        }
+
+        function exportarJSON() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(appData, null, 2));
+            const downloadAnchor = document.createElement('a');
+            downloadAnchor.setAttribute("href", dataStr);
+            downloadAnchor.setAttribute("download", `ContabilASM_Respaldo_${hoyISO()}.json`);
+            document.body.appendChild(downloadAnchor);
+            downloadAnchor.click();
+            downloadAnchor.remove();
+        }
+
+        function exportarCSV() {
+            const proyectosCalculados = appData.proyectos.map(p => calcularProyecto(p));
+            let csvContent = "\uFEFF";
+            csvContent += "ID;Nombre;Tipo;Inversion USD;Ganancias USD;Perdidas USD;Neto USD;% Recuperacion;Pendiente USD;Estado;Fecha Inicio\n";
+
+            proyectosCalculados.forEach(p => {
+                csvContent += `"${p.id}";"${p.nombre.replace(/"/g, '""')}";"${p.tipo}";"${p.inversion}";"${p.ganancias}";"${p.perdidas}";"${p.neto}";"${p.pctRecuperacion.toFixed(2)}%";"${p.pendiente}";"${p.estado}";"${p.inicio}"\n`;
+            });
+
+            const encodedUri = "data:text/csv;charset=utf-8," + encodeURIComponent(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `ContabilASM_Resumen_${hoyISO()}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+        }
+
+        function importarJSON(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const imported = JSON.parse(e.target.result);
+                    if (imported && Array.isArray(imported.proyectos) && Array.isArray(imported.movimientos)) {
+                        if (confirm('¿Desea reemplazar los datos actuales con los del archivo importado?')) {
+                            appData = imported;
+                            guardarDatos();
+                            alert('Datos importados con éxito.');
+                        }
+                    } else {
+                        alert('El archivo JSON no tiene el formato válido de ContabilASM.');
+                    }
+                } catch(err) {
+                    alert('Error al leer el archivo JSON.');
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = '';
+        }
+
+        document.getElementById('proj-inicio').value = hoyISO();
+        document.getElementById('mov-fecha').value = hoyISO();
+        cargarDatos();
+    </script>
+</body>
+</html>
